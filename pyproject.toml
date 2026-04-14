@@ -1,11 +1,30 @@
 [build-system]
-requires = ["setuptools>=64.0,<76.0"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name="cjm-transcription-plugin-qwen3-forced-aligner"
-requires-python=">=3.12"
-dynamic = [ "keywords", "description", "version", "dependencies", "optional-dependencies", "readme", "license", "authors", "classifiers", "entry-points", "scripts", "urls"]
+name = "cjm-transcription-plugin-qwen3-forced-aligner"
+dynamic = ["version"]
+description = "A Qwen3-based forced alignment plugin for the cjm-transcription-plugin-system that provides word-level audio-text alignment using Qwen/Qwen3-ForcedAligner-0.6B with progress reporting."
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "Apache-2.0"}
+authors = [{name = "Christian J. Mills", email = "9126128+cj-mills@users.noreply.github.com"}]
+keywords = ['nbdev', 'jupyter', 'notebook', 'python']
+classifiers = ["Natural Language :: English", "Intended Audience :: Developers", "Development Status :: 3 - Alpha", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only"]
+dependencies = ['cjm_transcription_plugin_system', 'qwen-asr']
 
-[tool.uv]
-cache-keys = [{ file = "pyproject.toml" }, { file = "settings.ini" }, { file = "setup.py" }]
+[project.urls]
+Repository = "https://github.com/cj-mills/cjm-transcription-plugin-qwen3-forced-aligner"
+Documentation = "https://cj-mills.github.io/cjm-transcription-plugin-qwen3-forced-aligner"
+
+[project.entry-points.nbdev]
+cjm_transcription_plugin_qwen3_forced_aligner = "cjm_transcription_plugin_qwen3_forced_aligner._modidx:d"
+
+[tool.setuptools.dynamic]
+version = {attr = "cjm_transcription_plugin_qwen3_forced_aligner.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["cjm_transcription_plugin_qwen3_forced_aligner"]
+
+[tool.nbdev]
