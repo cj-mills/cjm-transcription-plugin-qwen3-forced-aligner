@@ -25,6 +25,6 @@ cjm_transcription_plugin_qwen3_forced_aligner = "cjm_transcription_plugin_qwen3_
 version = {attr = "cjm_transcription_plugin_qwen3_forced_aligner.__version__"}
 
 [tool.setuptools.packages.find]
-include = ["cjm_transcription_plugin_qwen3_forced_aligner"]
+include = ["cjm_transcription_plugin_qwen3_forced_aligner*"]
 
 [tool.nbdev]
