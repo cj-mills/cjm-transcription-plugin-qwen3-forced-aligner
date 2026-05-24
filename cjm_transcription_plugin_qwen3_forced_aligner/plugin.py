@@ -27,6 +27,9 @@ from cjm_transcription_plugin_system.core import AudioData
 from cjm_transcription_plugin_system.forced_alignment_core import ForcedAlignItem, ForcedAlignResult
 from cjm_transcription_plugin_system.forced_alignment_storage import ForcedAlignmentStorage
 from cjm_plugin_system.utils.hashing import hash_file, hash_bytes
+from cjm_plugin_system.core.errors import (
+    PluginInputError, PluginResourceError, ResourceShortfall,
+)
 from cjm_plugin_system.utils.validation import (
     dict_to_config, config_to_dict, dataclass_to_jsonschema,
     SCHEMA_TITLE, SCHEMA_DESC, SCHEMA_ENUM
@@ -215,7 +218,10 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
         elif isinstance(audio, AudioData):
             audio_path = audio.to_temp_file()
         else:
-            raise ValueError(f"Unsupported audio type: {type(audio)}")
+            raise PluginInputError(  # SG-47: typed input-validation (multi-inherits ValueError)
+                f"Unsupported audio type: {type(audio)}",
+                fields_invalid=["audio"],
+            )
 
         # Lazy load model
         self._load_model()
@@ -227,13 +233,26 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
         self.report_progress(0.4, "Running forced alignment...")
         self.logger.info(f"Running alignment on {audio_path} ({len(text)} chars)")
 
-        # Run alignment
+        # Run alignment. SG-47 Track B wraps the inference site so CUDA OOM
+        # surfaces as PluginResourceError → CR-7 reactive-retry reloads.
         language = kwargs.get("language", self._config.language)
-        results = self._model.align(
-            audio=audio_path,
-            text=text,
-            language=language,
-        )
+        try:
+            results = self._model.align(
+                audio=audio_path,
+                text=text,
+                language=language,
+            )
+        except torch.cuda.OutOfMemoryError as e:
+            free_bytes = torch.cuda.mem_get_info()[0] if torch.cuda.is_available() else 0
+            available_mb = free_bytes / (1024 ** 2)
+            raise PluginResourceError(
+                f"CUDA OOM during Qwen3 forced-alignment (audio_chars={len(text)}): {e}",
+                resource_shortfall=ResourceShortfall(
+                    resource='gpu_vram_mb',
+                    needed=available_mb + 100.0,
+                    available=available_mb,
+                ),
+            ) from e
 
         self.report_progress(0.8, "Processing results...")
 
