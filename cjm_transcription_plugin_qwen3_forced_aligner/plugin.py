@@ -23,7 +23,6 @@ except ImportError:
     QWEN3_AVAILABLE = False
 
 from cjm_transcription_plugin_system.forced_alignment_interface import ForcedAlignmentPlugin
-from cjm_transcription_plugin_system.core import AudioData
 from cjm_transcription_plugin_system.forced_alignment_core import ForcedAlignItem, ForcedAlignResult
 from cjm_transcription_plugin_system.forced_alignment_storage import ForcedAlignmentStorage
 from cjm_plugin_system.utils.hashing import hash_file, hash_bytes
@@ -212,19 +211,17 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
 
     def execute(
         self,
-        audio: Union[AudioData, str, Path],  # Audio data or file path
+        audio: Union[str, Path],  # Audio data or file path
         text: str,                            # Transcript text to align against
         **kwargs
     ) -> ForcedAlignResult:  # Word-level alignment result
         """Perform forced alignment of text against audio."""
-        # Resolve audio path
+        # Resolve audio path (caller provides a decodable file path)
         if isinstance(audio, (str, Path)):
             audio_path = str(audio)
-        elif isinstance(audio, AudioData):
-            audio_path = audio.to_temp_file()
         else:
             raise PluginInputError(  # SG-47: typed input-validation (multi-inherits ValueError)
-                f"Unsupported audio type: {type(audio)}",
+                f"Unsupported audio type: {type(audio)}; expected a file path (str or Path)",
                 fields_invalid=["audio"],
             )
 
@@ -284,20 +281,17 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
         # Store result
         if self._storage:
             job_id = kwargs.get("job_id", str(uuid4()))
-            try:
-                self._storage.save(
-                    job_id=job_id,
-                    audio_path=audio_path,
-                    audio_hash=audio_hash,
-                    text=text,
-                    text_hash=text_hash,
-                    items=[asdict(item) for item in items],
-                    metadata=result.metadata,
-                )
+            if self._storage.save_with_logging(
+                job_id=job_id,
+                audio_path=audio_path,
+                audio_hash=audio_hash,
+                text=text,
+                text_hash=text_hash,
+                items=[asdict(item) for item in items],
+                metadata=result.metadata,
+                logger=self.logger,
+            ):
                 result.metadata["job_id"] = job_id
-                self.logger.info(f"Saved result to DB (Job: {job_id})")
-            except Exception as e:
-                self.logger.error(f"Failed to save to DB: {e}")
 
         self.report_progress(1.0, "Alignment complete.")
         self.logger.info(f"Alignment complete: {len(items)} words")
