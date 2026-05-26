@@ -132,28 +132,26 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
             return {}
         return config_to_dict(self._config)
 
+    def _apply_config(
+        self,
+        config: Optional[Any] = None  # Configuration dataclass, dict, or None
+    ) -> None:
+        """CR-4: apply config values only. Called by initialize (first-time) and the
+        substrate's reconfigure delta path. Model release on a model_id/device/dtype/
+        attn_implementation change is handled declaratively via RELOAD_TRIGGER ->
+        _release_model (device/dtype are resolved lazily in _load_model)."""
+        self._config = dict_to_config(Qwen3ForcedAlignerConfig, config or {})
+
     def initialize(
         self,
         config: Optional[Any] = None  # Configuration dataclass, dict, or None
     ) -> None:
-        """Initialize or re-configure the plugin (idempotent)."""
-        new_config = dict_to_config(Qwen3ForcedAlignerConfig, config or {})
+        """First-time setup. CR-4: the manual diff-and-reload is replaced by declarative
+        RELOAD_TRIGGER metadata; the substrate's reconfigure path fires _release_model
+        then re-applies config via _apply_config."""
+        self._apply_config(config)
 
-        # Check if model needs reload
-        if self._config and self._model is not None:
-            needs_reload = (
-                new_config.model_id != self._config.model_id or
-                new_config.device != self._config.device or
-                new_config.dtype != self._config.dtype or
-                new_config.attn_implementation != self._config.attn_implementation
-            )
-            if needs_reload:
-                self.logger.info("Config change detected, unloading model")
-                self._release_model()
-
-        self._config = new_config
-
-        # Initialize storage
+        # Initialize storage (one-time)
         db_path = get_plugin_metadata().get("db_path")
         if db_path:
             self._storage = ForcedAlignmentStorage(db_path)
@@ -296,6 +294,16 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
         self.report_progress(1.0, "Alignment complete.")
         self.logger.info(f"Alignment complete: {len(items)} words")
         return result
+
+    def prefetch(self) -> None:
+        """CR-4 (SG-19): eagerly load the model so the first execute() doesn't pay
+        the download/load cost. Idempotent via _load_model's None-guard."""
+        self._load_model()
+
+    def on_disable(self) -> None:
+        """CR-2: release the GPU model when the operator disables the plugin (the
+        worker stays alive); lazy reload on the next execute after re-enable."""
+        self._release_model()
 
     def cleanup(self) -> None:
         """Clean up resources."""
