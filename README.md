@@ -21,8 +21,8 @@ Total: 2 notebooks
 
 ``` mermaid
 graph LR
-    meta[meta<br/>Metadata]
-    plugin[plugin<br/>Qwen3 Forced Aligner Plugin]
+    meta["meta<br/>Metadata"]
+    plugin["plugin<br/>Qwen3 Forced Aligner Plugin"]
 
     plugin --> meta
 ```
@@ -149,7 +149,9 @@ class Qwen3ForcedAlignerPlugin:
             self,
             config: Optional[Any] = None  # Configuration dataclass, dict, or None
         ) -> None
-        "Initialize or re-configure the plugin (idempotent)."
+        "First-time setup. CR-4: the manual diff-and-reload is replaced by declarative
+RELOAD_TRIGGER metadata; the substrate's reconfigure path fires _release_model
+then re-applies config via _apply_config."
     
     def execute(
             self,
@@ -158,6 +160,24 @@ class Qwen3ForcedAlignerPlugin:
             **kwargs
         ) -> ForcedAlignResult:  # Word-level alignment result
         "Perform forced alignment of text against audio."
+    
+    def prefetch(self) -> None:
+            """CR-4 (SG-19): eagerly load the model so the first execute() doesn't pay
+            the download/load cost. Idempotent via _load_model's None-guard."""
+            self._load_model()
+    
+        def on_disable(self) -> None
+        "CR-4 (SG-19): eagerly load the model so the first execute() doesn't pay
+the download/load cost. Idempotent via _load_model's None-guard."
+    
+    def on_disable(self) -> None:
+            """CR-2: release the GPU model when the operator disables the plugin (the
+            worker stays alive); lazy reload on the next execute after re-enable."""
+            self._release_model()
+    
+        def cleanup(self) -> None
+        "CR-2: release the GPU model when the operator disables the plugin (the
+worker stays alive); lazy reload on the next execute after re-enable."
     
     def cleanup(self) -> None
         "Clean up resources."

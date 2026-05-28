@@ -48,7 +48,6 @@ class Qwen3ForcedAlignerConfig:
             SCHEMA_TITLE: "Model ID",
             RELOAD_TRIGGER: "model",  # CR-4: change triggers model reload
             SCHEMA_DESC: "HuggingFace model identifier",
-            SCHEMA_ENUM: ["Qwen/Qwen3-ForcedAligner-0.6B"],
         }
     )
 
