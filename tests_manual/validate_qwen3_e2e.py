@@ -157,13 +157,13 @@ def run_e2e() -> None:
     log.info(f"Submitting submit_sequence for {TEST_AUDIO.name} ({len(transcript)} chars)...")
     t0 = time.time()
     result = asyncio.run(run_sequence())
-    items = result.get("items") if isinstance(result, dict) else getattr(result, "items", None)
+    from cjm_transcription_plugin_system.forced_alignment_core import ForcedAlignResult  # noqa: F401 — registers the wire kind (typed decode)
+    items = result.items  # typed ForcedAlignResult (stage-2 wire layer)
     log.info(f"Sequence completed in {time.time() - t0:.1f}s")
     assert items, f"No alignment items; raw result={result!r}"
     log.info(f"Aligned {len(items)} words; first 5:")
     for it in items[:5]:
-        d = it if isinstance(it, dict) else {"text": getattr(it, "text", None), "start_time": getattr(it, "start_time", None), "end_time": getattr(it, "end_time", None)}
-        log.info(f"  {d.get('text')!r} [{d.get('start_time')}-{d.get('end_time')}]")
+        log.info(f"  {it.text!r} [{it.start_time}-{it.end_time}]")
 
     # Plugin DB: confirm the alignment row persisted.
     if db_path and Path(db_path).exists():
