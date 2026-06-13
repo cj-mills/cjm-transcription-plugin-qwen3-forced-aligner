@@ -1,0 +1,112 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "cjm-transcription-plugin-qwen3-forced-aligner",
+    "section": "",
+    "text": "pip install cjm_transcription_plugin_qwen3_forced_aligner",
+    "crumbs": [
+      "cjm-transcription-plugin-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#install",
+    "href": "index.html#install",
+    "title": "cjm-transcription-plugin-qwen3-forced-aligner",
+    "section": "",
+    "text": "pip install cjm_transcription_plugin_qwen3_forced_aligner",
+    "crumbs": [
+      "cjm-transcription-plugin-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#project-structure",
+    "href": "index.html#project-structure",
+    "title": "cjm-transcription-plugin-qwen3-forced-aligner",
+    "section": "Project Structure",
+    "text": "Project Structure\nnbs/\n├── meta.ipynb   # Metadata introspection for the Qwen3 Forced Aligner plugin used by cjm-ctl to generate the registration manifest.\n└── plugin.ipynb # Plugin implementation for Qwen3 word-level forced alignment\nTotal: 2 notebooks",
+    "crumbs": [
+      "cjm-transcription-plugin-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#module-dependencies",
+    "href": "index.html#module-dependencies",
+    "title": "cjm-transcription-plugin-qwen3-forced-aligner",
+    "section": "Module Dependencies",
+    "text": "Module Dependencies\ngraph LR\n    meta[\"meta&lt;br/&gt;Metadata\"]\n    plugin[\"plugin&lt;br/&gt;Qwen3 Forced Aligner Plugin\"]\n\n    plugin --&gt; meta\n1 cross-module dependencies detected",
+    "crumbs": [
+      "cjm-transcription-plugin-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#cli-reference",
+    "href": "index.html#cli-reference",
+    "title": "cjm-transcription-plugin-qwen3-forced-aligner",
+    "section": "CLI Reference",
+    "text": "CLI Reference\nNo CLI commands found in this project.",
+    "crumbs": [
+      "cjm-transcription-plugin-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#module-overview",
+    "href": "index.html#module-overview",
+    "title": "cjm-transcription-plugin-qwen3-forced-aligner",
+    "section": "Module Overview",
+    "text": "Module Overview\nDetailed documentation for each module in the project:\n\nMetadata (meta.ipynb)\n\nMetadata introspection for the Qwen3 Forced Aligner plugin used by cjm-ctl to generate the registration manifest.\n\n\nImport\nfrom cjm_transcription_plugin_qwen3_forced_aligner.meta import (\n    get_plugin_metadata\n)\n\n\nFunctions\ndef get_plugin_metadata() -&gt; Dict[str, Any]:  # Plugin metadata for manifest generation\n    \"\"\"Return metadata required to register this plugin with the PluginManager.\"\"\"\n    # Fallback base path (current behavior for backward compatibility)\n    base_path = os.path.dirname(os.path.dirname(sys.executable))\n\n    # Use CJM config if available, else fallback to env-relative paths\n    cjm_data_dir = os.environ.get(\"CJM_DATA_DIR\")\n\n    # Plugin data directory\n    plugin_name = \"cjm-transcription-plugin-qwen3-forced-aligner\"\n    if cjm_data_dir\n    \"Return metadata required to register this plugin with the PluginManager.\"\n\n\n\nQwen3 Forced Aligner Plugin (plugin.ipynb)\n\nPlugin implementation for Qwen3 word-level forced alignment\n\n\nImport\nfrom cjm_transcription_plugin_qwen3_forced_aligner.plugin import (\n    Qwen3ForcedAlignerConfig,\n    Qwen3ForcedAlignerPlugin\n)\n\n\nFunctions\n@patch\ndef is_available(self:Qwen3ForcedAlignerPlugin) -&gt; bool:  # True if qwen_asr is importable\n    \"Check if the Qwen3 forced aligner is available.\"\n@patch\ndef _apply_config(\n    self:Qwen3ForcedAlignerPlugin,\n    config: Optional[Any] = None  # Configuration dataclass, dict, or None\n) -&gt; None\n    \"\"\"\n    CR-4: apply config values only. Called by initialize (first-time) and the\n    substrate's reconfigure delta path. Model release on a model_id/device/dtype/\n    attn_implementation change is handled declaratively via RELOAD_TRIGGER -&gt;\n    _release_model (device/dtype are resolved lazily in _load_model).\n    \"\"\"\n@patch\ndef _load_model(self:Qwen3ForcedAlignerPlugin):\n    \"\"\"Load model on first use. Heartbeat-wrapped HF Hub download + build.\"\"\"\n    if self._model is not None\n    \"Load model on first use. Heartbeat-wrapped HF Hub download + build.\"\n@patch\ndef _release_model(self:Qwen3ForcedAlignerPlugin)\n    \"\"\"\n    CR-4: release the model + free CUDA cache (cjm-torch-plugin-utils).\n    RELOAD_TRIGGER target for model_id/device/dtype/attn_implementation; on_disable /\n    cleanup delegate here. Idempotent (release_model no-ops when already None).\n    \"\"\"\n@patch\ndef prefetch(self:Qwen3ForcedAlignerPlugin) -&gt; None\n    \"\"\"\n    CR-4 (SG-19): eagerly load the model so the first execute() doesn't pay\n    the download/load cost. Idempotent via _load_model's None-guard.\n    \"\"\"\n@patch\ndef on_disable(self:Qwen3ForcedAlignerPlugin) -&gt; None\n    \"\"\"\n    CR-2: release the GPU model when the operator disables the plugin (the\n    worker stays alive); lazy reload on the next execute after re-enable.\n    \"\"\"\n@patch\ndef cleanup(self:Qwen3ForcedAlignerPlugin) -&gt; None\n    \"Clean up resources.\"\n\n\nClasses\n@dataclass\nclass Qwen3ForcedAlignerConfig(HFCacheConfig):\n    \"\"\"\n    Configuration for the Qwen3 Forced Aligner plugin.\n    \n    Composes HFCacheConfig (cache_dir / revision / local_files_only / trust_remote_code,\n    each RELOAD_TRIGGER-tagged) so HF Hub download behaviour is operator-controllable.\n    \"\"\"\n    \n    model_id: str = field(...)\n    device: str = field(...)\n    dtype: str = field(...)\n    attn_implementation: str = field(...)\n    language: str = field(...)\nclass Qwen3ForcedAlignerPlugin:\n    def __init__(self):\n        \"\"\"Initialize the plugin with default state.\"\"\"\n        self.logger = logging.getLogger(f\"{__name__}.{type(self).__name__}\")\n        self.config: Qwen3ForcedAlignerConfig = None\n    \"Qwen3 Forced Alignment plugin for word-level audio-text alignment.\"\n    \n    def __init__(self):\n            \"\"\"Initialize the plugin with default state.\"\"\"\n            self.logger = logging.getLogger(f\"{__name__}.{type(self).__name__}\")\n            self.config: Qwen3ForcedAlignerConfig = None\n        \"Initialize the plugin with default state.\"\n    \n    def name(self) -&gt; str:  # Plugin name identifier\n            return \"cjm-transcription-plugin-qwen3-forced-aligner\"\n    \n        @property\n        def version(self) -&gt; str:  # Plugin version string\n    \n    def version(self) -&gt; str:  # Plugin version string\n            from cjm_transcription_plugin_qwen3_forced_aligner import __version__\n            return __version__\n    \n        @property\n        def supported_formats(self) -&gt; List[str]:  # Supported audio file formats\n    \n    def supported_formats(self) -&gt; List[str]:  # Supported audio file formats\n            return [\"wav\", \"mp3\", \"flac\", \"ogg\", \"m4a\"]\n    \n    \n        def get_config_schema(self) -&gt; Dict[str, Any]:  # JSON Schema for configuration\n    \n    def get_config_schema(self) -&gt; Dict[str, Any]:  # JSON Schema for configuration\n            \"\"\"Return JSON Schema for UI generation.\"\"\"\n            return dataclass_to_jsonschema(Qwen3ForcedAlignerConfig)\n    \n        def get_current_config(self) -&gt; Dict[str, Any]:  # Current configuration as dictionary\n        \"Return JSON Schema for UI generation.\"\n    \n    def get_current_config(self) -&gt; Dict[str, Any]:  # Current configuration as dictionary\n            \"\"\"Return current configuration state.\"\"\"\n            if not self.config\n        \"Return current configuration state.\"\n    \n    def initialize(\n            self,\n            config: Optional[Any] = None  # Configuration dataclass, dict, or None\n        ) -&gt; None\n        \"First-time setup. CR-4: the manual diff-and-reload is replaced by declarative\nRELOAD_TRIGGER metadata; the substrate's reconfigure path fires _release_model\nthen re-applies config via _apply_config.\"\n    \n    def execute(\n            self,\n            audio: Union[str, Path],  # Audio data or file path\n            text: str,                            # Transcript text to align against\n            **kwargs\n        ) -&gt; ForcedAlignResult:  # Word-level alignment result\n        \"Perform forced alignment of text against audio.\"",
+    "crumbs": [
+      "cjm-transcription-plugin-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "meta.html#testing",
+    "href": "meta.html#testing",
+    "title": "Metadata",
+    "section": "Testing",
+    "text": "Testing\n\nimport json\n\nmetadata = get_plugin_metadata()\nprint(json.dumps(metadata, indent=2))\n\n{\n  \"name\": \"cjm-transcription-plugin-qwen3-forced-aligner\",\n  \"version\": \"0.0.18\",\n  \"description\": \"Qwen3 word-level forced alignment \\u2014 aligns transcript text to per-word audio timestamps.\",\n  \"type\": \"transcription\",\n  \"category\": \"forced_alignment\",\n  \"interface\": \"cjm_transcription_plugin_system.forced_alignment_interface.ForcedAlignmentPlugin\",\n  \"module\": \"cjm_transcription_plugin_qwen3_forced_aligner.plugin\",\n  \"class\": \"Qwen3ForcedAlignerPlugin\",\n  \"python_path\": \"/opt/hostedtoolcache/Python/3.12.13/x64/bin/python\",\n  \"db_path\": \"/opt/hostedtoolcache/Python/3.12.13/x64/data/qwen3_forced_alignments.db\",\n  \"resources\": {\n    \"requires_gpu\": true\n  },\n  \"env_vars\": {}\n}",
+    "crumbs": [
+      "Metadata"
+    ]
+  },
+  {
+    "objectID": "plugin.html",
+    "href": "plugin.html",
+    "title": "Qwen3 Forced Aligner Plugin",
+    "section": "",
+    "text": "def Qwen3ForcedAlignerConfig(\n    cache_dir:Optional=None, revision:Optional=None, local_files_only:bool=False, trust_remote_code:bool=False,\n    model_id:str='Qwen/Qwen3-ForcedAligner-0.6B', device:str='auto', dtype:str='bfloat16',\n    attn_implementation:str='sdpa', language:str='English'\n)-&gt;None:\n\nConfiguration for the Qwen3 Forced Aligner plugin.\nComposes HFCacheConfig (cache_dir / revision / local_files_only / trust_remote_code, each RELOAD_TRIGGER-tagged) so HF Hub download behaviour is operator-controllable.",
+    "crumbs": [
+      "Qwen3 Forced Aligner Plugin"
+    ]
+  },
+  {
+    "objectID": "plugin.html#configuration",
+    "href": "plugin.html#configuration",
+    "title": "Qwen3 Forced Aligner Plugin",
+    "section": "",
+    "text": "def Qwen3ForcedAlignerConfig(\n    cache_dir:Optional=None, revision:Optional=None, local_files_only:bool=False, trust_remote_code:bool=False,\n    model_id:str='Qwen/Qwen3-ForcedAligner-0.6B', device:str='auto', dtype:str='bfloat16',\n    attn_implementation:str='sdpa', language:str='English'\n)-&gt;None:\n\nConfiguration for the Qwen3 Forced Aligner plugin.\nComposes HFCacheConfig (cache_dir / revision / local_files_only / trust_remote_code, each RELOAD_TRIGGER-tagged) so HF Hub download behaviour is operator-controllable.",
+    "crumbs": [
+      "Qwen3 Forced Aligner Plugin"
+    ]
+  },
+  {
+    "objectID": "plugin.html#plugin-implementation",
+    "href": "plugin.html#plugin-implementation",
+    "title": "Qwen3 Forced Aligner Plugin",
+    "section": "Plugin Implementation",
+    "text": "Plugin Implementation\n\n\nQwen3ForcedAlignerPlugin\n\ndef Qwen3ForcedAlignerPlugin(\n    \n):\n\nQwen3 Forced Alignment plugin for word-level audio-text alignment.\n\n\n\nQwen3ForcedAlignerPlugin.is_available\n\ndef is_available(\n    \n)-&gt;bool: # True if qwen_asr is importable\n\nCheck if the Qwen3 forced aligner is available.\n\n\n\nQwen3ForcedAlignerPlugin.prefetch\n\ndef prefetch(\n    \n)-&gt;None:\n\nCR-4 (SG-19): eagerly load the model so the first execute() doesn’t pay the download/load cost. Idempotent via _load_model’s None-guard.\n\n\n\nQwen3ForcedAlignerPlugin.on_disable\n\ndef on_disable(\n    \n)-&gt;None:\n\nCR-2: release the GPU model when the operator disables the plugin (the worker stays alive); lazy reload on the next execute after re-enable.\n\n\n\nQwen3ForcedAlignerPlugin.cleanup\n\ndef cleanup(\n    \n)-&gt;None:\n\nClean up resources.",
+    "crumbs": [
+      "Qwen3 Forced Aligner Plugin"
+    ]
+  },
+  {
+    "objectID": "plugin.html#testing",
+    "href": "plugin.html#testing",
+    "title": "Qwen3 Forced Aligner Plugin",
+    "section": "Testing",
+    "text": "Testing\n\n# Test basic plugin properties\nplugin = Qwen3ForcedAlignerPlugin()\n\nprint(f\"Plugin name: {plugin.name}\")\nprint(f\"Plugin version: {plugin.version}\")\nprint(f\"Supported formats: {plugin.supported_formats}\")\nprint(f\"Entry point group: {plugin.entry_point_group}\")\nprint(f\"Available: {plugin.is_available()}\")\nprint(f\"Config class: {plugin.config_class.__name__}\")\n\nPlugin name: cjm-transcription-plugin-qwen3-forced-aligner\nPlugin version: 0.0.1\nSupported formats: ['wav', 'mp3', 'flac', 'ogg', 'm4a']\nEntry point group: transcription.forced_alignment_plugins\nAvailable: True\nConfig class: Qwen3ForcedAlignerConfig\n\n\n\n# Test configuration\nfrom dataclasses import fields\n\nprint(\"Config fields:\")\nfor f in fields(Qwen3ForcedAlignerConfig):\n    print(f\"  {f.name}: default={f.default}, title={f.metadata.get(SCHEMA_TITLE, '')}\")\n\nConfig fields:\n  cache_dir: default=None, title=HF Cache Directory\n  revision: default=None, title=Model Revision\n  local_files_only: default=False, title=Local Files Only\n  trust_remote_code: default=False, title=Trust Remote Code\n  model_id: default=Qwen/Qwen3-ForcedAligner-0.6B, title=Model ID\n  device: default=auto, title=Device\n  dtype: default=bfloat16, title=Data Type\n  attn_implementation: default=sdpa, title=Attention Implementation\n  language: default=English, title=Language\n\n\n\n# Test JSON Schema generation\nimport json\n\nplugin = Qwen3ForcedAlignerPlugin()\n\nschema = plugin.get_config_schema()\nprint(f\"Schema name: {schema['name']}\")\nprint(f\"Properties: {len(schema['properties'])}\")\nprint(json.dumps(schema['properties'], indent=2))\n\nSchema name: Qwen3ForcedAlignerConfig\nProperties: 9\n{\n  \"cache_dir\": {\n    \"type\": [\n      \"string\",\n      \"null\"\n    ],\n    \"title\": \"HF Cache Directory\",\n    \"description\": \"Override the HF Hub cache location for model downloads (default: HF_HOME).\",\n    \"default\": null\n  },\n  \"revision\": {\n    \"type\": [\n      \"string\",\n      \"null\"\n    ],\n    \"title\": \"Model Revision\",\n    \"description\": \"Git revision / tag / commit to pin (default: the repo's main branch).\",\n    \"default\": null\n  },\n  \"local_files_only\": {\n    \"type\": \"boolean\",\n    \"title\": \"Local Files Only\",\n    \"description\": \"Reject network access and use only cached files (air-gapped / reproducible).\",\n    \"default\": false\n  },\n  \"trust_remote_code\": {\n    \"type\": \"boolean\",\n    \"title\": \"Trust Remote Code\",\n    \"description\": \"DANGER: allow execution of model-author code shipped in the repo.\",\n    \"default\": false\n  },\n  \"model_id\": {\n    \"type\": \"string\",\n    \"title\": \"Model ID\",\n    \"description\": \"HuggingFace model identifier\",\n    \"default\": \"Qwen/Qwen3-ForcedAligner-0.6B\"\n  },\n  \"device\": {\n    \"type\": \"string\",\n    \"title\": \"Device\",\n    \"description\": \"Device for model inference ('auto', 'cuda:0', 'cpu')\",\n    \"default\": \"auto\"\n  },\n  \"dtype\": {\n    \"type\": \"string\",\n    \"title\": \"Data Type\",\n    \"description\": \"Model precision\",\n    \"enum\": [\n      \"bfloat16\",\n      \"float16\",\n      \"float32\"\n    ],\n    \"default\": \"bfloat16\"\n  },\n  \"attn_implementation\": {\n    \"type\": \"string\",\n    \"title\": \"Attention Implementation\",\n    \"description\": \"Attention backend ('sdpa' for PyTorch native, 'flash_attention_2' if flash-attn installed)\",\n    \"enum\": [\n      \"sdpa\",\n      \"flash_attention_2\",\n      \"eager\"\n    ],\n    \"default\": \"sdpa\"\n  },\n  \"language\": {\n    \"type\": \"string\",\n    \"title\": \"Language\",\n    \"description\": \"Language for alignment\",\n    \"default\": \"English\"\n  }\n}\n\n\n\n# Test initialization\nimport logging\nlogging.basicConfig(level=logging.INFO)\n\nplugin.initialize({\"language\": \"English\", \"device\": \"auto\"})\nprint(f\"Current config: {plugin.get_current_config()}\")\n\n# Model should NOT be loaded yet (lazy loading)\nassert plugin._model is None\nprint(\"Model not loaded (lazy): OK\")\n\nCurrent config: {'cache_dir': None, 'revision': None, 'local_files_only': False, 'trust_remote_code': False, 'model_id': 'Qwen/Qwen3-ForcedAligner-0.6B', 'device': 'auto', 'dtype': 'bfloat16', 'attn_implementation': 'sdpa', 'language': 'English'}\nModel not loaded (lazy): OK\n\n\n\n# Test config change detection\nprint(\"Re-initializing with same config (no reload)...\")\nplugin.initialize({\"language\": \"English\", \"device\": \"auto\"})\n\nprint(\"Re-initializing with different dtype (would reload if model loaded)...\")\nplugin.initialize({\"language\": \"English\", \"device\": \"auto\", \"dtype\": \"float16\"})\nprint(f\"Updated dtype: {plugin.config.dtype}\")\n\n# Cleanup\nplugin.cleanup()\nprint(\"Cleanup: OK\")\n\n\nExecution Tests\nThese tests require the Qwen3 model to be downloaded and GPU available.\n\nfrom pathlib import Path\n\n# Test execution with real audio\nplugin = Qwen3ForcedAlignerPlugin()\nplugin.initialize({\"language\": \"English\"})\n\ntest_audio = Path(\"../test_files/short_test_audio.mp3\")\ntest_text = Path(\"../test_files/short_test_audio.txt\").read_text().strip()\n\nprint(f\"Audio: {test_audio}\")\nprint(f\"Text: {test_text[:80]}...\")\n\nresult = plugin.execute(str(test_audio), text=test_text)\n\nprint(f\"\\nResult: {len(result.items)} words\")\nprint(f\"Metadata: {result.metadata}\")\nprint(f\"\\nFirst 10 items:\")\nfor item in result.items[:10]:\n    print(f\"  {item}\")\n\nplugin.cleanup()\n\nInitialized with model=Qwen/Qwen3-ForcedAligner-0.6B, device=auto\nLoading model Qwen/Qwen3-ForcedAligner-0.6B on cuda:0 with bfloat16\n\n\nAudio: ../test_files/short_test_audio.mp3\nText: November the 10th, Wednesday, 9 p.m. I'm standing in a dark alley. After waiting...\n\n\nModel loaded successfully\nRunning alignment on ../test_files/short_test_audio.mp3 (233 chars)\nSaved result to DB (Job: a17c3e67-34f7-4f93-a38a-d53e0bc4c65c)\nAlignment complete: 43 words\nUnloading model\nCleanup completed\n\n\n\nResult: 43 words\nMetadata: {'model_id': 'Qwen/Qwen3-ForcedAligner-0.6B', 'language': 'English', 'device': 'cuda:0', 'dtype': 'bfloat16', 'word_count': 43, 'job_id': 'a17c3e67-34f7-4f93-a38a-d53e0bc4c65c'}\n\nFirst 10 items:\n  ForcedAlignItem(text='November', start_time=1.04, end_time=1.6)\n  ForcedAlignItem(text='the', start_time=1.6, end_time=1.68)\n  ForcedAlignItem(text='10th', start_time=1.76, end_time=2.08)\n  ForcedAlignItem(text='Wednesday', start_time=2.48, end_time=3.04)\n  ForcedAlignItem(text='9', start_time=3.84, end_time=4.16)\n  ForcedAlignItem(text='pm', start_time=4.16, end_time=4.64)\n  ForcedAlignItem(text=\"I'm\", start_time=6.32, end_time=6.48)\n  ForcedAlignItem(text='standing', start_time=6.48, end_time=7.2)\n  ForcedAlignItem(text='in', start_time=7.2, end_time=7.28)\n  ForcedAlignItem(text='a', start_time=7.28, end_time=7.36)\n\n\n\n# Test with longer audio\nplugin = Qwen3ForcedAlignerPlugin()\nplugin.initialize({\"language\": \"English\"})\n\ntest_audio = Path(\"../test_files/02 - 1. Laying Plans.mp3\")\ntest_text = Path(\"../test_files/02 - 1. Laying Plans.txt\").read_text().strip()\n\nprint(f\"Audio: {test_audio}\")\nprint(f\"Text length: {len(test_text)} chars, {len(test_text.split())} words\")\n\nresult = plugin.execute(str(test_audio), text=test_text)\n\nprint(f\"\\nResult: {len(result.items)} words aligned\")\nprint(f\"First 5: {result.items[:5]}\")\nprint(f\"Last 5: {result.items[-5:]}\")\n\n# Verify storage\nif plugin._storage:\n    job_id = result.metadata.get(\"job_id\")\n    if job_id:\n        row = plugin._storage.get_by_job_id(job_id)\n        print(f\"\\nStored job: {row.job_id}\")\n        print(f\"Stored items count: {len(row.items)}\")\n        assert row.items[0][\"text\"] == result.items[0].text\n        print(\"Storage round-trip: OK\")\n\nplugin.cleanup()\n\nInitialized with model=Qwen/Qwen3-ForcedAligner-0.6B, device=auto\nLoading model Qwen/Qwen3-ForcedAligner-0.6B on cuda:0 with bfloat16\n\n\nAudio: ../test_files/02 - 1. Laying Plans.mp3\nText length: 3405 chars, 599 words\n\n\nModel loaded successfully\nRunning alignment on ../test_files/02 - 1. Laying Plans.mp3 (3405 chars)\nSaved result to DB (Job: 66363e20-0fda-4994-93c4-2ecd328b6dcd)\nAlignment complete: 599 words\nUnloading model\nCleanup completed\n\n\n\nResult: 599 words aligned\nFirst 5: [ForcedAlignItem(text='Laying', start_time=1.12, end_time=1.52), ForcedAlignItem(text='Plans', start_time=1.52, end_time=2.24), ForcedAlignItem(text='Sun', start_time=4.8, end_time=5.04), ForcedAlignItem(text='Tzu', start_time=5.04, end_time=5.28), ForcedAlignItem(text='said', start_time=5.28, end_time=5.76)]\nLast 5: [ForcedAlignItem(text='likely', start_time=250.88, end_time=251.36), ForcedAlignItem(text='to', start_time=251.36, end_time=251.36), ForcedAlignItem(text='win', start_time=251.44, end_time=252.0), ForcedAlignItem(text='or', start_time=252.32, end_time=252.4), ForcedAlignItem(text='lose', start_time=252.4, end_time=252.96)]\n\nStored job: 66363e20-0fda-4994-93c4-2ecd328b6dcd\nStored items count: 599\nStorage round-trip: OK",
+    "crumbs": [
+      "Qwen3 Forced Aligner Plugin"
+    ]
+  }
+]
