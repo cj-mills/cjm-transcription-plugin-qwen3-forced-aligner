@@ -10,8 +10,8 @@ dependencies:
   - pip:
     - torch
     - qwen-asr
-    - cjm-plugin-system
-    - cjm-transcription-plugin-system
+    # Substrate (cjm-plugin-system) is AUTO-INJECTED by install-all schema v2 — not listed here.
+    - cjm-capability-primitives
     # Shared plugin utils (torch release/OOM + HF Hub download/cache)
     - cjm-torch-plugin-utils
     - cjm-hf-plugin-utils

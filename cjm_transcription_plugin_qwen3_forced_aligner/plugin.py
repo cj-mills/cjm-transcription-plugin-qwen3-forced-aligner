@@ -9,10 +9,9 @@ __all__ = ['Qwen3ForcedAlignerConfig', 'Qwen3ForcedAlignerPlugin']
 
 # %% ../nbs/plugin.ipynb #cell-imports
 import logging
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, ClassVar
-from uuid import uuid4
 
 import torch
 from fastcore.basics import patch
@@ -23,18 +22,19 @@ try:
 except ImportError:
     QWEN3_AVAILABLE = False
 
-from cjm_transcription_plugin_system.forced_alignment_interface import ForcedAlignmentPlugin
-from cjm_transcription_plugin_system.forced_alignment_core import ForcedAlignItem, ForcedAlignResult
-from cjm_transcription_plugin_system.forced_alignment_storage import ForcedAlignmentStorage
-from cjm_plugin_system.utils.hashing import hash_file, hash_bytes, hash_dict_canonical
-from cjm_plugin_system.core.interface import RELOAD_TRIGGER, EnvVarSpec
+# Stage 8 (Option C / PILLAR 1c): the tool re-bases onto ToolCapability (pure
+# compute). The cache/persist bookends moved OUT to the generic forced-alignment
+# adapter (cjm-forced-alignment-adapter-interface); the ForcedAlignResult data
+# noun lives in cjm-capability-primitives; identity derives from the installed
+# distribution. No get_plugin_metadata, no self.storage. Audio arrives
+# MODEL-READY (converted upstream by ffmpeg); text is the transcript to align.
+from cjm_plugin_system.core.capability import ToolCapability, RELOAD_TRIGGER, EnvVarSpec
+from cjm_capability_primitives.forced_alignment import ForcedAlignItem, ForcedAlignResult
 from cjm_plugin_system.core.errors import PluginInputError
 from cjm_plugin_system.utils.validation import (
     dict_to_config, config_to_dict, dataclass_to_jsonschema,
     SCHEMA_TITLE, SCHEMA_DESC, SCHEMA_ENUM
 )
-
-from .meta import get_plugin_metadata
 
 # Shared plugin utils: HF Hub download/cache mixin + load + torch release + CUDA-OOM typing.
 from cjm_hf_plugin_utils.cache_config import HFCacheConfig
@@ -98,8 +98,16 @@ class Qwen3ForcedAlignerConfig(HFCacheConfig):
     )
 
 # %% ../nbs/plugin.ipynb #cell-plugin
-class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
-    """Qwen3 Forced Alignment plugin for word-level audio-text alignment."""
+class Qwen3ForcedAlignerPlugin(ToolCapability):
+    """Qwen3 word-level forced-alignment tool capability (stage 8: pure compute).
+
+    Native-surface model (PILLAR 1c): this tool is PURE COMPUTE — `align` reads
+    MODEL-READY audio + the transcript text, runs Qwen3 inference, and builds the
+    typed `ForcedAlignResult`. The cache-check + persistence bookends + the
+    per-call `force` control live in the generic forced-alignment adapter
+    (cjm-forced-alignment-adapter-interface); the result DTO lives in
+    cjm-capability-primitives; identity derives from the installed distribution.
+    No `get_plugin_metadata`, no `self.storage`."""
 
     config_class = Qwen3ForcedAlignerConfig
 
@@ -136,21 +144,18 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
         self._loaded_device: Optional[str] = None
         self._loaded_dtype: Optional[str] = None
         self._loaded_attn: Optional[str] = None
-        self._storage: Optional[ForcedAlignmentStorage] = None
 
     @property
     def name(self) -> str:  # Plugin name identifier
-        return get_plugin_metadata()["name"]
+        """Plugin identity, derived from the installed distribution (PILLAR 1c)."""
+        from importlib.metadata import metadata, packages_distributions
+        dist = (packages_distributions().get(__package__) or [__package__.replace("_", "-")])[0]
+        return metadata(dist)["Name"]
 
     @property
     def version(self) -> str:  # Plugin version string
         from cjm_transcription_plugin_qwen3_forced_aligner import __version__
         return __version__
-
-    @property
-    def supported_formats(self) -> List[str]:  # Supported audio file formats
-        return ["wav", "mp3", "flac", "ogg", "m4a"]
-
 
     def get_config_schema(self) -> Dict[str, Any]:  # JSON Schema for configuration
         """Return JSON Schema for UI generation."""
@@ -158,77 +163,49 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
 
     def get_current_config(self) -> Dict[str, Any]:  # Current configuration as dictionary
         """Return current configuration state."""
-        if not self.config:
-            return {}
-        return config_to_dict(self.config)
-
+        return config_to_dict(self.config) if self.config else {}
 
     def initialize(
         self,
         config: Optional[Any] = None  # Configuration dataclass, dict, or None
     ) -> None:
-        """First-time setup. CR-4: the manual diff-and-reload is replaced by declarative
-        RELOAD_TRIGGER metadata; the substrate's reconfigure path fires _release_model
-        then re-applies config via _apply_config."""
+        """First-time setup. CR-4: config application is factored into _apply_config;
+        the substrate's reconfigure fires _release_model on a model_id/device/dtype/
+        attn_implementation change (RELOAD_TRIGGER) then re-applies config. No storage
+        init — the adapter owns the cache (stage 8)."""
         self._apply_config(config)
-
-        # Initialize storage (one-time)
-        db_path = get_plugin_metadata().get("db_path")
-        if db_path:
-            self._storage = ForcedAlignmentStorage(db_path)
-
         self.logger.info(f"Initialized with model={self.config.model_id}, device={self.config.device}")
 
-
-
-    def execute(
+    def align(
         self,
-        audio: Union[str, Path],  # Audio data or file path
-        text: str,                            # Transcript text to align against
-        **kwargs
-    ) -> ForcedAlignResult:  # Word-level alignment result
-        """Perform forced alignment of text against audio."""
-        # Resolve audio path (caller provides a decodable file path)
-        if isinstance(audio, (str, Path)):
-            audio_path = str(audio)
-        else:
+        audio: Union[str, Path],  # Path to MODEL-READY audio (converted upstream)
+        text: str,                # Transcript text to align against the audio
+        **kwargs                  # Provenance pass-through (unused by FA compute)
+    ) -> ForcedAlignResult:       # Word-level alignment result
+        """Align transcript text to model-ready audio at word level — PURE COMPUTE.
+
+        Stage 8 / PILLAR 1c: the cache-check + persistence bookends + per-call
+        `force` moved to the generic forced-alignment adapter; this method loads
+        the model, runs Qwen3, and builds the typed result. The alignment language
+        comes from `self.config.language` (no per-call kwarg override — the tool
+        runs its effective config; the prior unhashed `language` override was
+        retired at migration)."""
+        if not isinstance(audio, (str, Path)):
             raise PluginInputError(  # SG-47: typed input-validation (multi-inherits ValueError)
                 f"Unsupported audio type: {type(audio)}; expected a file path (str or Path)",
                 fields_invalid=["audio"],
             )
+        audio_path = str(audio)
 
-        # Hash inputs (audio content + transcript text) for the cache key, before loading
-        # the model so a pure cache hit skips the model load entirely.
-        self.report_progress(0.2, "Hashing input files...")
-        audio_hash = hash_file(audio_path)
-        text_hash = hash_bytes(text.encode("utf-8"))
-        # CR-15: config_hash derives from self.config (the effective config). The per-call
-        # `language` kwarg override below is NOT reflected here (and `language` changes the
-        # alignment output) — that override path predates the substrate overhaul and is
-        # slated for removal (candidate CR-15 / project_execute_invocation_contract_gap).
-        config_hash = hash_dict_canonical(config_to_dict(self.config))
-
-        # Cache check (content-correct: audio_path + audio_hash + text_hash + config_hash).
-        # Input is the (audio, transcript) pair, so text_hash is part of the key.
-        if self._storage and not kwargs.get("force", False):
-            cached = self._storage.get_cached(audio_path, audio_hash, text_hash, config_hash)
-            if cached:
-                self.logger.info(f"Using cached alignment for {audio_path}")
-                self.report_progress(1.0, "Alignment complete (cached).")
-                return ForcedAlignResult(
-                    items=[ForcedAlignItem(**item) for item in (cached.items or [])],
-                    metadata=cached.metadata,
-                )
-
-        # Cache miss — lazy load model + align
+        # Pure compute: lazy-load the model, then align (no cache/persist here).
         self._load_model()
 
         self.report_progress(0.4, "Running forced alignment...")
         self.logger.info(f"Running alignment on {audio_path} ({len(text)} chars)")
 
-        # Run alignment. SG-47 Track B wraps the inference site so CUDA OOM surfaces as
+        # SG-47 Track B wraps the inference site so CUDA OOM surfaces as
         # PluginResourceError (via cjm-torch-plugin-utils) → CR-7 reactive-retry reloads.
-        language = kwargs.get("language", self.config.language)
+        language = self.config.language
         try:
             results = self._model.align(
                 audio=audio_path,
@@ -242,15 +219,11 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
 
         self.report_progress(0.8, "Processing results...")
 
-        # Convert qwen_asr ForcedAlignResult to our standardized format
-        items = []
-        for item in results[0].items:
-            items.append(ForcedAlignItem(
-                text=item.text,
-                start_time=item.start_time,
-                end_time=item.end_time,
-            ))
-
+        # Convert qwen_asr ForcedAlignResult to our standardized DTO.
+        items = [
+            ForcedAlignItem(text=item.text, start_time=item.start_time, end_time=item.end_time)
+            for item in results[0].items
+        ]
         result = ForcedAlignResult(
             items=items,
             metadata={
@@ -261,23 +234,6 @@ class Qwen3ForcedAlignerPlugin(ForcedAlignmentPlugin):
                 "word_count": len(items),
             }
         )
-
-        # Store result
-        if self._storage:
-            job_id = kwargs.get("job_id", str(uuid4()))
-            if self._storage.save_with_logging(
-                job_id=job_id,
-                audio_path=audio_path,
-                audio_hash=audio_hash,
-                text=text,
-                text_hash=text_hash,
-                config_hash=config_hash,
-                items=[asdict(item) for item in items],
-                metadata=result.metadata,
-                logger=self.logger,
-            ):
-                result.metadata["job_id"] = job_id
-
         self.report_progress(1.0, "Alignment complete.")
         self.logger.info(f"Alignment complete: {len(items)} words")
         return result
