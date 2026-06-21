@@ -1,0 +1,102 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "cjm-capability-qwen3-forced-aligner",
+    "section": "",
+    "text": "pip install cjm_capability_qwen3_forced_aligner",
+    "crumbs": [
+      "cjm-capability-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#install",
+    "href": "index.html#install",
+    "title": "cjm-capability-qwen3-forced-aligner",
+    "section": "",
+    "text": "pip install cjm_capability_qwen3_forced_aligner",
+    "crumbs": [
+      "cjm-capability-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#project-structure",
+    "href": "index.html#project-structure",
+    "title": "cjm-capability-qwen3-forced-aligner",
+    "section": "Project Structure",
+    "text": "Project Structure\nnbs/\n└── capability.ipynb # Capability implementation for Qwen3 word-level forced alignment\nTotal: 1 notebook",
+    "crumbs": [
+      "cjm-capability-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#module-dependencies",
+    "href": "index.html#module-dependencies",
+    "title": "cjm-capability-qwen3-forced-aligner",
+    "section": "Module Dependencies",
+    "text": "Module Dependencies\ngraph LR\n    capability[\"capability&lt;br/&gt;Qwen3 Forced Aligner Capability\"]\n\nNo cross-module dependencies detected.",
+    "crumbs": [
+      "cjm-capability-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#cli-reference",
+    "href": "index.html#cli-reference",
+    "title": "cjm-capability-qwen3-forced-aligner",
+    "section": "CLI Reference",
+    "text": "CLI Reference\nNo CLI commands found in this project.",
+    "crumbs": [
+      "cjm-capability-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "index.html#module-overview",
+    "href": "index.html#module-overview",
+    "title": "cjm-capability-qwen3-forced-aligner",
+    "section": "Module Overview",
+    "text": "Module Overview\nDetailed documentation for each module in the project:\n\nQwen3 Forced Aligner Capability (capability.ipynb)\n\nCapability implementation for Qwen3 word-level forced alignment\n\n\nImport\nfrom cjm_capability_qwen3_forced_aligner.capability import (\n    Qwen3ForcedAlignerConfig,\n    Qwen3ForcedAlignerCapability\n)\n\n\nFunctions\n@patch\ndef is_available(self:Qwen3ForcedAlignerCapability) -&gt; bool:  # True if qwen_asr is importable\n    \"Check if the Qwen3 forced aligner is available.\"\n@patch\ndef _apply_config(\n    self:Qwen3ForcedAlignerCapability,\n    config: Optional[Any] = None  # Configuration dataclass, dict, or None\n) -&gt; None\n    \"\"\"\n    CR-4: apply config values only. Called by initialize (first-time) and the\n    substrate's reconfigure delta path. Model release on a model_id/device/dtype/\n    attn_implementation change is handled declaratively via RELOAD_TRIGGER -&gt;\n    _release_model (device/dtype are resolved lazily in _load_model).\n    \"\"\"\n@patch\ndef _load_model(self:Qwen3ForcedAlignerCapability):\n    \"\"\"Load model on first use. Heartbeat-wrapped HF Hub download + build.\"\"\"\n    if self._model is not None\n    \"Load model on first use. Heartbeat-wrapped HF Hub download + build.\"\n@patch\ndef _release_model(self:Qwen3ForcedAlignerCapability)\n    \"\"\"\n    CR-4: release the model + free CUDA cache (cjm-substrate-torch-utils).\n    RELOAD_TRIGGER target for model_id/device/dtype/attn_implementation; on_disable /\n    cleanup delegate here. Idempotent (release_model no-ops when already None).\n    \"\"\"\n@patch\ndef prefetch(self:Qwen3ForcedAlignerCapability) -&gt; None\n    \"\"\"\n    CR-4 (SG-19): eagerly load the model so the first execute() doesn't pay\n    the download/load cost. Idempotent via _load_model's None-guard.\n    \"\"\"\n@patch\ndef on_disable(self:Qwen3ForcedAlignerCapability) -&gt; None\n    \"\"\"\n    CR-2: release the GPU model when the operator disables the capability (the\n    worker stays alive); lazy reload on the next execute after re-enable.\n    \"\"\"\n@patch\ndef cleanup(self:Qwen3ForcedAlignerCapability) -&gt; None\n    \"Clean up resources.\"\n\n\nClasses\n@dataclass\nclass Qwen3ForcedAlignerConfig(HFCacheConfig):\n    \"\"\"\n    Configuration for the Qwen3 Forced Aligner capability.\n    \n    Composes HFCacheConfig (cache_dir / revision / local_files_only / trust_remote_code,\n    each RELOAD_TRIGGER-tagged) so HF Hub download behaviour is operator-controllable.\n    \"\"\"\n    \n    model_id: str = field(...)\n    device: str = field(...)\n    dtype: str = field(...)\n    attn_implementation: str = field(...)\n    language: str = field(...)\nclass Qwen3ForcedAlignerCapability:\n    def __init__(self):\n        \"\"\"Initialize the capability with default state.\"\"\"\n        self.logger = logging.getLogger(f\"{__name__}.{type(self).__name__}\")\n        self.config: Qwen3ForcedAlignerConfig = None\n    \"\"\"\n    Qwen3 word-level forced-alignment tool capability (stage 8: pure compute).\n    \n    Native-surface model (PILLAR 1c): this tool is PURE COMPUTE — `align` reads\n    MODEL-READY audio + the transcript text, runs Qwen3 inference, and builds the\n    typed `ForcedAlignResult`. The cache-check + persistence bookends + the\n    per-call `force` control live in the generic forced-alignment adapter\n    (cjm-forced-alignment-adapter-interface); the result DTO lives in\n    cjm-capability-primitives; identity derives from the installed distribution.\n    No `get_plugin_metadata`, no `self.storage`.\n    \"\"\"\n    \n    def __init__(self):\n            \"\"\"Initialize the capability with default state.\"\"\"\n            self.logger = logging.getLogger(f\"{__name__}.{type(self).__name__}\")\n            self.config: Qwen3ForcedAlignerConfig = None\n        \"Initialize the capability with default state.\"\n    \n    def name(self) -&gt; str:  # Capability name identifier\n            \"\"\"Capability identity, derived from the installed distribution (PILLAR 1c).\"\"\"\n            from importlib.metadata import metadata, packages_distributions\n            dist = (packages_distributions().get(__package__) or [__package__.replace(\"_\", \"-\")])[0]\n            return metadata(dist)[\"Name\"]\n    \n        @property\n        def version(self) -&gt; str:  # Capability version string\n        \"Capability identity, derived from the installed distribution (PILLAR 1c).\"\n    \n    def version(self) -&gt; str:  # Capability version string\n            from cjm_capability_qwen3_forced_aligner import __version__\n            return __version__\n    \n        def get_config_schema(self) -&gt; Dict[str, Any]:  # JSON Schema for configuration\n    \n    def get_config_schema(self) -&gt; Dict[str, Any]:  # JSON Schema for configuration\n            \"\"\"Return JSON Schema for UI generation.\"\"\"\n            return dataclass_to_jsonschema(Qwen3ForcedAlignerConfig)\n    \n        def get_current_config(self) -&gt; Dict[str, Any]:  # Current configuration as dictionary\n        \"Return JSON Schema for UI generation.\"\n    \n    def get_current_config(self) -&gt; Dict[str, Any]:  # Current configuration as dictionary\n            \"\"\"Return current configuration state.\"\"\"\n            return config_to_dict(self.config) if self.config else {}\n    \n        def initialize(\n            self,\n            config: Optional[Any] = None  # Configuration dataclass, dict, or None\n        ) -&gt; None\n        \"Return current configuration state.\"\n    \n    def initialize(\n            self,\n            config: Optional[Any] = None  # Configuration dataclass, dict, or None\n        ) -&gt; None\n        \"First-time setup. CR-4: config application is factored into _apply_config;\nthe substrate's reconfigure fires _release_model on a model_id/device/dtype/\nattn_implementation change (RELOAD_TRIGGER) then re-applies config. No storage\ninit — the adapter owns the cache (stage 8).\"\n    \n    def align(\n            self,\n            audio: Union[str, Path],  # Path to MODEL-READY audio (converted upstream)\n            text: str,                # Transcript text to align against the audio\n            **kwargs                  # Provenance pass-through (unused by FA compute)\n        ) -&gt; ForcedAlignResult:       # Word-level alignment result\n        \"Align transcript text to model-ready audio at word level — PURE COMPUTE.\n\nStage 8 / PILLAR 1c: the cache-check + persistence bookends + per-call\n`force` moved to the generic forced-alignment adapter; this method loads\nthe model, runs Qwen3, and builds the typed result. The alignment language\ncomes from `self.config.language` (no per-call kwarg override — the tool\nruns its effective config; the prior unhashed `language` override was\nretired at migration).\"",
+    "crumbs": [
+      "cjm-capability-qwen3-forced-aligner"
+    ]
+  },
+  {
+    "objectID": "capability.html",
+    "href": "capability.html",
+    "title": "Qwen3 Forced Aligner Capability",
+    "section": "",
+    "text": "def Qwen3ForcedAlignerConfig(\n    cache_dir:Optional=None, revision:Optional=None, local_files_only:bool=False, trust_remote_code:bool=False,\n    model_id:str='Qwen/Qwen3-ForcedAligner-0.6B', device:str='auto', dtype:str='bfloat16',\n    attn_implementation:str='sdpa', language:str='English'\n)-&gt;None:\n\nConfiguration for the Qwen3 Forced Aligner capability.\nComposes HFCacheConfig (cache_dir / revision / local_files_only / trust_remote_code, each RELOAD_TRIGGER-tagged) so HF Hub download behaviour is operator-controllable.",
+    "crumbs": [
+      "Qwen3 Forced Aligner Capability"
+    ]
+  },
+  {
+    "objectID": "capability.html#configuration",
+    "href": "capability.html#configuration",
+    "title": "Qwen3 Forced Aligner Capability",
+    "section": "",
+    "text": "def Qwen3ForcedAlignerConfig(\n    cache_dir:Optional=None, revision:Optional=None, local_files_only:bool=False, trust_remote_code:bool=False,\n    model_id:str='Qwen/Qwen3-ForcedAligner-0.6B', device:str='auto', dtype:str='bfloat16',\n    attn_implementation:str='sdpa', language:str='English'\n)-&gt;None:\n\nConfiguration for the Qwen3 Forced Aligner capability.\nComposes HFCacheConfig (cache_dir / revision / local_files_only / trust_remote_code, each RELOAD_TRIGGER-tagged) so HF Hub download behaviour is operator-controllable.",
+    "crumbs": [
+      "Qwen3 Forced Aligner Capability"
+    ]
+  },
+  {
+    "objectID": "capability.html#capability-implementation",
+    "href": "capability.html#capability-implementation",
+    "title": "Qwen3 Forced Aligner Capability",
+    "section": "Capability Implementation",
+    "text": "Capability Implementation\n\n\nQwen3ForcedAlignerCapability\n\ndef Qwen3ForcedAlignerCapability(\n    \n):\n\nQwen3 word-level forced-alignment tool capability (stage 8: pure compute).\nNative-surface model (PILLAR 1c): this tool is PURE COMPUTE — align reads MODEL-READY audio + the transcript text, runs Qwen3 inference, and builds the typed ForcedAlignResult. The cache-check + persistence bookends + the per-call force control live in the generic forced-alignment adapter (cjm-forced-alignment-adapter-interface); the result DTO lives in cjm-capability-primitives; identity derives from the installed distribution. No get_plugin_metadata, no self.storage.\n\n\n\nQwen3ForcedAlignerCapability.is_available\n\ndef is_available(\n    \n)-&gt;bool: # True if qwen_asr is importable\n\nCheck if the Qwen3 forced aligner is available.\n\n\n\nQwen3ForcedAlignerCapability.prefetch\n\ndef prefetch(\n    \n)-&gt;None:\n\nCR-4 (SG-19): eagerly load the model so the first execute() doesn’t pay the download/load cost. Idempotent via _load_model’s None-guard.\n\n\n\nQwen3ForcedAlignerCapability.on_disable\n\ndef on_disable(\n    \n)-&gt;None:\n\nCR-2: release the GPU model when the operator disables the capability (the worker stays alive); lazy reload on the next execute after re-enable.\n\n\n\nQwen3ForcedAlignerCapability.cleanup\n\ndef cleanup(\n    \n)-&gt;None:\n\nClean up resources.",
+    "crumbs": [
+      "Qwen3 Forced Aligner Capability"
+    ]
+  },
+  {
+    "objectID": "capability.html#testing",
+    "href": "capability.html#testing",
+    "title": "Qwen3 Forced Aligner Capability",
+    "section": "Testing",
+    "text": "Testing\n\n# Test basic capability properties\ncapability = Qwen3ForcedAlignerCapability()\n\n# NOTE: capability.name derives from the installed distribution (importlib.metadata);\n# it resolves in the worker / installed module, NOT in __main__ (where __package__\n# is None), so it is asserted by the manifest generator + e2e, not here.\nprint(f\"Capability version: {capability.version}\")\nprint(f\"Available: {capability.is_available()}\")\nprint(f\"Config class: {capability.config_class.__name__}\")\nassert isinstance(capability, ToolCapability)\nassert capability.config_class.__name__ == \"Qwen3ForcedAlignerConfig\"\n\n\n# Test configuration\nfrom dataclasses import fields\n\nprint(\"Config fields:\")\nfor f in fields(Qwen3ForcedAlignerConfig):\n    print(f\"  {f.name}: default={f.default}, title={f.metadata.get(SCHEMA_TITLE, '')}\")\n\nConfig fields:\n  cache_dir: default=None, title=HF Cache Directory\n  revision: default=None, title=Model Revision\n  local_files_only: default=False, title=Local Files Only\n  trust_remote_code: default=False, title=Trust Remote Code\n  model_id: default=Qwen/Qwen3-ForcedAligner-0.6B, title=Model ID\n  device: default=auto, title=Device\n  dtype: default=bfloat16, title=Data Type\n  attn_implementation: default=sdpa, title=Attention Implementation\n  language: default=English, title=Language\n\n\n\n# Test JSON Schema generation\nimport json\n\ncapability = Qwen3ForcedAlignerCapability()\n\nschema = capability.get_config_schema()\nprint(f\"Schema name: {schema['name']}\")\nprint(f\"Properties: {len(schema['properties'])}\")\nprint(json.dumps(schema['properties'], indent=2))\n\nSchema name: Qwen3ForcedAlignerConfig\nProperties: 9\n{\n  \"cache_dir\": {\n    \"type\": [\n      \"string\",\n      \"null\"\n    ],\n    \"title\": \"HF Cache Directory\",\n    \"description\": \"Override the HF Hub cache location for model downloads (default: HF_HOME).\",\n    \"default\": null\n  },\n  \"revision\": {\n    \"type\": [\n      \"string\",\n      \"null\"\n    ],\n    \"title\": \"Model Revision\",\n    \"description\": \"Git revision / tag / commit to pin (default: the repo's main branch).\",\n    \"default\": null\n  },\n  \"local_files_only\": {\n    \"type\": \"boolean\",\n    \"title\": \"Local Files Only\",\n    \"description\": \"Reject network access and use only cached files (air-gapped / reproducible).\",\n    \"default\": false\n  },\n  \"trust_remote_code\": {\n    \"type\": \"boolean\",\n    \"title\": \"Trust Remote Code\",\n    \"description\": \"DANGER: allow execution of model-author code shipped in the repo.\",\n    \"default\": false\n  },\n  \"model_id\": {\n    \"type\": \"string\",\n    \"title\": \"Model ID\",\n    \"description\": \"HuggingFace model identifier\",\n    \"default\": \"Qwen/Qwen3-ForcedAligner-0.6B\"\n  },\n  \"device\": {\n    \"type\": \"string\",\n    \"title\": \"Device\",\n    \"description\": \"Device for model inference ('auto', 'cuda:0', 'cpu')\",\n    \"default\": \"auto\"\n  },\n  \"dtype\": {\n    \"type\": \"string\",\n    \"title\": \"Data Type\",\n    \"description\": \"Model precision\",\n    \"enum\": [\n      \"bfloat16\",\n      \"float16\",\n      \"float32\"\n    ],\n    \"default\": \"bfloat16\"\n  },\n  \"attn_implementation\": {\n    \"type\": \"string\",\n    \"title\": \"Attention Implementation\",\n    \"description\": \"Attention backend ('sdpa' for PyTorch native, 'flash_attention_2' if flash-attn installed)\",\n    \"enum\": [\n      \"sdpa\",\n      \"flash_attention_2\",\n      \"eager\"\n    ],\n    \"default\": \"sdpa\"\n  },\n  \"language\": {\n    \"type\": \"string\",\n    \"title\": \"Language\",\n    \"description\": \"Language for alignment\",\n    \"default\": \"English\"\n  }\n}\n\n\n\n# Test initialization\nimport logging\nlogging.basicConfig(level=logging.INFO)\n\ncapability.initialize({\"language\": \"English\", \"device\": \"auto\"})\nprint(f\"Current config: {capability.get_current_config()}\")\n\n# Model should NOT be loaded yet (lazy loading)\nassert capability._model is None\nprint(\"Model not loaded (lazy): OK\")\n\nCurrent config: {'cache_dir': None, 'revision': None, 'local_files_only': False, 'trust_remote_code': False, 'model_id': 'Qwen/Qwen3-ForcedAligner-0.6B', 'device': 'auto', 'dtype': 'bfloat16', 'attn_implementation': 'sdpa', 'language': 'English'}\nModel not loaded (lazy): OK\n\n\n\n# Test config change detection\nprint(\"Re-initializing with same config (no reload)...\")\ncapability.initialize({\"language\": \"English\", \"device\": \"auto\"})\n\nprint(\"Re-initializing with different dtype (would reload if model loaded)...\")\ncapability.initialize({\"language\": \"English\", \"device\": \"auto\", \"dtype\": \"float16\"})\nprint(f\"Updated dtype: {capability.config.dtype}\")\n\n# Cleanup\ncapability.cleanup()\nprint(\"Cleanup: OK\")\n\n\nExecution Tests\nThese tests require the Qwen3 model to be downloaded and GPU available.\n\nfrom pathlib import Path\n\n# Test pure-compute alignment with real audio (cache/persist now live in the adapter)\ncapability = Qwen3ForcedAlignerCapability()\ncapability.initialize({\"language\": \"English\"})\n\ntest_audio = Path(\"../test_files/short_test_audio.mp3\")\ntest_text = Path(\"../test_files/short_test_audio.txt\").read_text().strip()\n\nprint(f\"Audio: {test_audio}\")\nprint(f\"Text: {test_text[:80]}...\")\n\nresult = capability.align(str(test_audio), text=test_text)\n\nprint(f\"\\nResult: {len(result.items)} words\")\nprint(f\"Metadata: {result.metadata}\")\nprint(f\"\\nFirst 10 items:\")\nfor item in result.items[:10]:\n    print(f\"  {item}\")\n\ncapability.cleanup()\n\n\n# Test with longer audio\ncapability = Qwen3ForcedAlignerCapability()\ncapability.initialize({\"language\": \"English\"})\n\ntest_audio = Path(\"../test_files/02 - 1. Laying Plans.mp3\")\ntest_text = Path(\"../test_files/02 - 1. Laying Plans.txt\").read_text().strip()\n\nprint(f\"Audio: {test_audio}\")\nprint(f\"Text length: {len(test_text)} chars, {len(test_text.split())} words\")\n\nresult = capability.align(str(test_audio), text=test_text)\n\nprint(f\"\\nResult: {len(result.items)} words aligned\")\nprint(f\"First 5: {result.items[:5]}\")\nprint(f\"Last 5: {result.items[-5:]}\")\n\ncapability.cleanup()",
+    "crumbs": [
+      "Qwen3 Forced Aligner Capability"
+    ]
+  }
+]
